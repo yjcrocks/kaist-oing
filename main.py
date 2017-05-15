@@ -74,39 +74,46 @@ def tilted_face_detection(pts1, pts2, frame):
     return cv2.warpPerspective(frame_tilted, M_inv, (frame_w, frame_h))
 
 
+def face_detection(frame):
+    frame_grayscale = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    faces = face_cascade.detectMultiScale(frame_grayscale, 1.3, 5)
+    print('  - {:3d} faces detected'.format(len(faces)))
+    for x, y, w, h in faces:
+        face_rect_points = \
+            np.array([[x, y],
+                      [x + w, y],
+                      [x + w, y + h],
+                      [x, y + h]])
+        cv2.polylines(frame, [np.int32(face_rect_points)], True, (255, 0, 0), 2)
+
+        eyes = eye_cascade.detectMultiScale(frame_grayscale[y:y + h, x:x + w])
+        for ex, ey, ew, eh in eyes:
+            eyes_rect_points = \
+                np.array([[x + ex, y + ey],
+                          [x + ex + ew, y + ey],
+                          [x + ex + ew, y + ey + eh],
+                          [x + ex, y + ey + eh]])
+            cv2.polylines(frame, [np.int32(eyes_rect_points)], True, (0, 255, 0), 2)
+    return frame
+
+
+def detect_face_from_frame(frame):
+    frame_h, frame_w, _ = frame.shape
+    # corners = np.float32([[0, 0], [frame_w, 0], [frame_w, frame_h], [0, frame_h]])
+    annotated_frame = face_detection(frame)
+    return annotated_frame
+
+
 def main():
-    cap = cv2.VideoCapture(0)
-
-    p1 = 1 / 3
-    p2 = 1 - p1
-
-    while True:
-        is_success, frame = cap.read()
-        if not is_success:
+    for filename in os.listdir('inputs'):
+        try:
+            img = cv2.imread(os.path.join('inputs', filename))
+            print('Processing image "{}"'.format(filename))
+            aimg = detect_face_from_frame(img)
+            cv2.imwrite(os.path.join('outputs', filename), aimg)
+        except Exception as ex:
+            print(ex)
             continue
-
-        frame_h, frame_w, _ = frame.shape
-
-        pts1 = np.float32([[0, 0], [frame_w, 0], [frame_w, frame_h], [0, frame_h]])
-        pts2 = np.float32([[0, 0], [frame_w, int(frame_h * p1)], [frame_w, int(frame_h * p2)], [0, frame_h]])
-        pts3 = np.float32([[0, int(frame_h * p1)], [frame_w, 0], [frame_w, frame_h], [0, int(frame_h * p2)]])
-
-        # r_right = tilted_face_detection(pts1, pts2, frame)
-        r_middle = tilted_face_detection(pts1, pts1, frame)
-        # r_left = tilted_face_detection(pts1, pts3, frame)
-
-        # cv2.imshow('left', r_left)
-        cv2.imshow('middle', r_middle)
-        # cv2.imshow('right', r_right)
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-        time.sleep(1 / 30)
-
-    # When everything done, release the capture
-    cap.release()
-    cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     main()
